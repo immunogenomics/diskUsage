@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Disk Usage</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    margin: 0; padding: 24px; background: #f3f4f6; color: #111827; font-size: 14px;
+  }
+  h1 { margin: 0 0 4px; font-size: 1.6em; color: #111827; }
+  .ts { color: #6b7280; font-size: 0.85em; margin-bottom: 16px; }
+  .tabs { display: flex; border-bottom: 2px solid #e5e7eb; margin-bottom: 20px; }
+  .tab-btn {
+    background: none; border: none; padding: 8px 18px; font-size: 0.95em; cursor: pointer;
+    color: #6b7280; border-bottom: 2px solid transparent; margin-bottom: -2px;
+    font-weight: 500; font-family: inherit;
+  }
+  .tab-btn.active { color: #111827; border-bottom-color: #111827; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .dir-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .dir-btn {
+    background: #fff; border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 14px;
+    font-size: 0.85em; cursor: pointer; color: #374151; font-family: inherit;
+  }
+  .dir-btn.active { background: #111827; color: #fff; border-color: #111827; }
+  .card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+    padding: 16px 20px; margin-bottom: 16px;
+  }
+  .card-title { margin: 0 0 14px; font-size: 1em; font-weight: 600; color: #374151; }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+  .bar-label {
+    font-family: monospace; font-size: 0.82em; width: 110px; flex-shrink: 0;
+    text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: #374151;
+  }
+  .bar-track { flex: 1; height: 18px; background: #f3f4f6; border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; background: #2563eb; border-radius: 3px; }
+  .bar-size { font-size: 0.8em; color: #6b7280; white-space: nowrap; min-width: 72px; }
+  .chart-wrap { display: flex; gap: 24px; align-items: flex-start; overflow-x: auto; }
+  .legend-item { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .legend-name { font-size: 0.78em; color: #374151; font-family: monospace; }
+  .legend-val { font-size: 0.72em; color: #9ca3af; margin-left: 2px; }
+  .no-data { color: #9ca3af; font-style: italic; padding: 8px 0; }
+  .chart-pair { display: flex; gap: 32px; flex-wrap: wrap; }
+  .chart-panel { flex: 1; min-width: 300px; }
+  .chart-panel-title { font-size: 0.82em; font-weight: 600; color: #6b7280; margin: 0 0 8px; }
+  .warning {
+    font-size: 0.8em; color: #92400e; background: #fffbeb; border: 1px solid #fcd34d;
+    border-radius: 6px; padding: 7px 12px; margin-bottom: 14px;
+  }
+  .total-banner {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+    padding: 14px 20px; margin-bottom: 16px;
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  .total-value { font-size: 2em; font-weight: 800; color: #111827; line-height: 1; }
+  .total-label { font-size: 0.85em; color: #6b7280; }
+  .entity-selector { margin-bottom: 10px; }
+  .entity-search {
+    width: 100%; border: 1px solid #d1d5db; border-radius: 6px;
+    padding: 5px 10px; font-size: 0.82em; font-family: inherit;
+    margin-bottom: 4px; outline: none; box-sizing: border-box;
+  }
+  .entity-search:focus { border-color: #6b7280; }
+  .entity-list {
+    max-height: 160px; overflow-y: auto;
+    border: 1px solid #e5e7eb; border-radius: 6px;
+  }
+  .entity-row {
+    display: flex; align-items: center; gap: 8px; padding: 4px 10px; cursor: pointer;
+  }
+  .entity-row:hover { background: #f9fafb; }
+  .entity-name { font-family: monospace; font-size: 0.82em; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .entity-val { color: #9ca3af; font-size: 0.78em; flex-shrink: 0; }
+  .selector-chart-wrap { display: flex; gap: 16px; align-items: flex-start; }
+  .selector-sidebar { flex-shrink: 0; width: 200px; }
+  .card-scroll { max-height: 320px; overflow-y: auto; }
+</style>
+</head>
+<body>
+<h1>Disk Usage</h1>
+<div class="ts">Generated 2026-05-18 10:25:08</div>
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('user',this)">By User</button>
+  <button class="tab-btn" onclick="switchTab('folder',this)">By Folder</button>
+</div>
+<div id="tab-user" class="tab-content active">
+  <div id="user-dirs" class="dir-btns"></div>
+  <div id="user-view"></div>
+</div>
+<div id="tab-folder" class="tab-content">
+  <div id="folder-dirs" class="dir-btns"></div>
+  <div id="folder-view"></div>
+</div>
+<script>
+const DATA = {"byUser": {"single-cell-core": [{"date": "2026-05-05", "users": {"ns013": 7855.41, "root": 0.0}, "total": 7855.41}], "srlab1": [{"date": "2026-04-07", "users": {"so638": 61334.39, "jn467": 36619.26, "ns013": 33548.73, "zm104": 23283.62, "kl162": 15079.89, "UNKNOWN": 11864.3, "jbk37": 5456.41, "mc1070": 5035.95, "yt909": 4925.98, "ik936": 4814.04, "ls1471": 3522.92, "dk718": 2605.32, "an601": 2545.55, "yz704": 2522.1, "hl560": 2506.21, "ja1162": 2159.42, "nm455": 2076.05, "kew47": 1450.71, "yr073": 738.12, "lar24": 607.98, "ssg34": 255.21, "tr110": 162.3, "ed162": 14.1, "cl1334": 10.17, "cw216": 4.83, "root": 1.18, "ks38": 0.0507, "si929": 0.0031}, "total": 223144.7938}, {"date": "2026-05-05", "users": {"so638": 76581.95, "jn467": 36619.26, "ns013": 34867.76, "zm104": 27782.94, "kl162": 15079.89, "ls1471": 14530.44, "UNKNOWN": 11864.3, "jbk37": 5456.41, "yt909": 5044.82, "mc1070": 5035.95, "ik936": 4814.04, "dk718": 2605.32, "an601": 2545.55, "yz704": 2522.15, "hl560": 2506.21, "ja1162": 2284.66, "nm455": 2076.05, "kew47": 1450.71, "yr073": 749.35, "lar24": 607.98, "ssg34": 255.21, "tr110": 162.3, "ed162": 16.24, "cl1334": 10.17, "cw216": 4.83, "root": 1.18, "ks38": 0.0507, "si929": 0.0031}, "total": 255475.7238}], "srlab2": [{"date": "2026-05-05", "users": {"jn467": 32563.78, "ssg34": 30117.78, "so638": 29572.17, "kl162": 24231.84, "ns013": 21324.53, "UNKNOWN": 18581.74, "jbk37": 13020.52, "ik936": 10615.27, "rk637": 8389.48, "yt909": 8333.79, "yz704": 6854.79, "hm676": 3608.87, "ls1471": 2879.28, "mc1070": 2767.43, "nm455": 2416.79, "an601": 2052.95, "si929": 1362.15, "hl560": 1064.46, "kew47": 1030.47, "ja1162": 909.09, "cw216": 460.18, "zm104": 19.22, "hp712": 16.9, "hr723": 0.0946, "jc318": 0.081, "root": 0.0004, "dk718": 0.0003, "lar24": 0.0002, "jb1445": 0.0}, "total": 222193.6565}], "srlab": [{"date": "2026-04-07", "users": {"ns013": 61964.37, "UNKNOWN": 48006.93, "ls1471": 36314.3, "so638": 27924.19, "ks38": 20502.72, "ct663": 11440.5, "kew47": 8260.29, "si929": 7261.31, "jbk37": 6907.13, "rz513": 5312.86, "jn467": 5269.21, "ssg34": 2799.5, "hm676": 2318.44, "rk637": 2137.94, "lar24": 1910.91, "yr073": 1344.57, "djl7": 1147.65, "kl162": 1075.5, "yh851": 853.2, "nm455": 806.78, "yz704": 601.35, "jc1154": 459.1, "zm104": 343.0, "jz1155": 310.34, "an601": 267.52, "el224": 120.2, "ik936": 99.08, "mc1070": 36.85, "mrf15": 21.51, "root": 12.81, "dzs3": 7.4, "hl560": 4.71, "jp132": 3.94, "dk718": 0.0503, "cw216": 0.0081, "ja1162": 0.0, "sq561": 0.0}, "total": 255846.1684}, {"date": "2026-05-05", "users": {"ns013": 60699.49, "UNKNOWN": 48006.94, "ls1471": 39866.75, "so638": 31375.0, "ks38": 20502.74, "ct663": 11440.5, "kew47": 8260.29, "si929": 7261.31, "jbk37": 6907.13, "rz513": 5376.87, "jn467": 5269.21, "ssg34": 2799.5, "hm676": 2324.72, "rk637": 2137.94, "lar24": 1910.91, "yt909": 1872.85, "cl1334": 1554.49, "yr073": 1521.82, "djl7": 1147.65, "kl162": 1075.5, "yh851": 853.2, "nm455": 806.78, "yz704": 601.4, "jc1154": 459.1, "zm104": 343.0, "jz1155": 310.34, "an601": 267.52, "el224": 120.2, "ik936": 99.08, "mc1070": 36.85, "mrf15": 21.51, "root": 12.81, "dzs3": 7.4, "hl560": 4.71, "jp132": 3.94, "dk718": 0.0503, "cw216": 0.0081, "ja1162": 0.0, "sq561": 0.0}, "total": 265259.5084}]}, "byFolder": {"single-cell-core": [{"date": "2026-05-05", "folders": {"#": 0.0003, "10X-Core-Pipeline": 87.0, "230711_10X_KW11249_bcl": 1945.6, "231219_10X_KW11728_bcl": 3276.8, "240402_KW11994_raw_bcl": 1843.2, "241223_KW12775_NovaX_raw_bcl": 2252.8, "250606_KW13237_raw_bcl": 266.0}, "total": 9625.6}], "srlab1": [{"date": "2026-05-05", "folders": {"smantena": 96256.0, "zmu": 34816.0, "bwh10x": 26624.0, "hpark": 19456.0, "sugiarto": 15360.0, "public": 15360.0, "jmears": 15360.0, "bwh10x_DK": 11264.0, "TBRU": 10137.6, "scdatasets": 6348.8, "ITN": 6348.8, "Bios_project": 6041.6, "anathan": 6041.6, "ytomofuji": 5939.2, "yang": 5836.8, "mcurtis": 4300.8, "amber_joyce": 3686.4, "jkang": 3584.0, "Yu": 3174.4, "joseah": 2969.6, "nmillard": 2662.4, "kishigaki": 2355.2, "dk718": 2150.4, "bwh10x_tempStorage": 2150.4, "michelle-yakir": 1843.2, "kweinand": 1843.2, "KW11829_tests": 1740.8, "ashen": 1536.0, "TCAT": 1433.6, "vault": 1228.8, "laurie-yakir": 1228.8, "mgutierr": 1126.4, "ImmVar": 1126.4, "fzhang": 976.0, "GSK": 793.0, "lakshay-yakir": 756.0, "AIDA_bams": 755.0, "REdahiro_scRNA": 378.0, "datasets": 359.0, "BCAT": 230.0, "troysam": 203.0, "AIDA": 143.0, "FASTQs_helena": 124.0, "yakir": 43.0, "elizabeth": 22.0, "lsood": 19.0, "cl1334": 15.0, "cristianSRlab1": 5.7, "ITN_data": 1.8, "Natri2024": 0.8105, ".Trash-6237024": 0.0723, "airrcov": 0.0021, ".Rproj.user": 0.0012, "hyunsun": 0.0006, "klagattuta": 0.0003, "Data": 0.0002, "ik936": 0.0001, ".Trash-5699010": 0.0, ".Trash-5169487": 0.0, ".Trash-4479283": 0.0, ".Trash-4075558": 0.0, ".Trash-3303959": 0.0, "_STARtmp": 0.0, ".ipynb_checkpoints": 0.0, "amariuta": 0.0}, "total": 320512.0}], "srlab2": [{"date": "2026-05-05", "folders": {"public": 66560.0, "smantena": 56320.0, "klagattuta": 29696.0, "jkang": 20480.0, "srlab": 19456.0, "ik936": 13312.0, "rknevel": 11264.0, "jmears": 11264.0, "Yu": 8396.8, "AIDA_raw": 6963.2, "yb966": 6144.0, "bwh10x": 5529.6, "sasgari": 5222.4, "hafsam": 4505.6, "qxiao": 4300.8, "jatin": 3891.2, "ytomofuji": 3276.8, "yang": 3174.4, "nmillard": 2969.6, "anathan": 2560.0, "ashen": 2048.0, "Smillie2019": 1740.8, "hlee": 1331.2, "joseah": 1126.4, "fzhang": 616.0, "cristian": 492.0, "kweinand": 489.0, "ssakaue": 291.0, "jatin_samira_cmqtl": 217.0, "shakson": 73.0, "agupta": 70.0, "REdahiro_scRNA": 66.0, "amariuta": 44.0, "zmu": 24.0, "hpark": 21.0, "mgutierr": 2.1, "ITN": 1.1, "1K1K_raw": 0.7168, "jing": 0.4004, "hugor": 0.1318, "sugiarto": 0.1143, ".pps_temp": 0.0021, "python39": 0.0003, "myenv": 0.0003, ".Trash-4656154": 0.0001, ".ipynb_checkpoints": 0.0001, "vidya": 0.0, ".Trash-5763482": 0.0, ".Trash-5613848": 0.0, ".Trash-4710934": 0.0, ".Trash-4479283": 0.0, ".Trash-4075558": 0.0, "projects": 0.0, "malsuqri": 0.0}, "total": 290816.0}], "srlab": [{"date": "2026-05-05", "folders": {"bwh10x": 71680.0, "smantena": 33792.0, "external-data": 24576.0, "b_cell_eqtl": 18432.0, "public": 15360.0, "lsood": 15360.0, "RAseq": 14336.0, "sasgari": 13312.0, "girgetti": 13312.0, "AMP_collab": 12288.0, "ssakaue": 9728.0, "kweinand": 9728.0, "slowikow": 8294.4, "hwestra": 6451.2, "jatin": 5017.6, "fzhang": 4710.4, "xli": 4403.2, "ssg34": 3686.4, "hafsam": 2867.2, "mgutierr": 2764.8, "sugiarto": 2662.4, "cterao": 2560.0, "ytomofuji": 2355.2, "lrumker": 2355.2, "estahl": 2355.2, "xinlihu": 2150.4, "EGCUT": 2150.4, "kishigaki": 1740.8, "pfizer": 1536.0, "cfonseka": 1536.0, "klagattuta": 1331.2, "amariuta": 1228.8, "yang": 1126.4, "laurie-yu": 743.0, "itc": 536.0, "elangan": 423.0, "zmu": 420.0, "yb966": 405.0, "roche": 361.0, "agupta": 344.0, "jkang": 275.0, "anathan": 212.0, "C1pilot": 187.0, "Yu": 151.0, "rknevel": 124.0, "ki991": 120.0, "cmhong": 83.0, "amp_phase_2_repertoire_RA": 77.0, "ITCpilot_RNAaccess": 76.0, "cellranger": 73.0, "fileManagement": 47.0, ".Trash-2775380": 38.0, "ktsai": 18.0, ".panfsmigration": 15.0, "jib": 11.0, ".sugiarto_core": 9.7, "hlee": 9.6, "maha": 8.0, "emerge": 5.1, "jpouget": 4.9, "laurie-kaitlyn": 4.2, "gkv": 3.2, "backup": 2.4, "slack": 2.0, "vnaranbhai": 1.1, "Judy": 0.4561, "controlCenter": 0.1445, "node_modules": 0.1182, "sushil": 0.0986, "gluthria": 0.0479, "harm_jan_atac": 0.0186, "Lost+Found.2": 0.0067, "ik936": 0.0038, "disk-usage": 0.002, "Lost+Found.2.0": 0.0005, ".TemporaryItems": 0.0004, ".pps_temp": 0.0003, "pr852": 0.0001, ".ipynb_checkpoints": 0.0001, "tarLogs": 0.0001, "log": 0.0001, "home": 0.0001, "(A Document Being Saved By AUHelperService)": 0.0001, "chisq_per_nampc": 0.0001, "untitled folder": 0.0, ".Trash-5699010": 0.0, ".Trash-5318414": 0.0, ".Trash-4710934": 0.0, ".Trash-4466212": 0.0, ".Trash-3982370": 0.0, ".Trash-3752331": 0.0, ".Trash-3636685": 0.0, ".Trash-3388848": 0.0, "nmillard": 0.0, "ITN": 0.0}, "total": 316416.0}]}};
+
+const COLORS = ['#2563eb','#dc2626','#16a34a','#d97706','#7c3aed',
+  '#0891b2','#c026d3','#059669','#ea580c','#4f46e5',
+  '#0284c7','#65a30d','#b91c1c','#0f766e','#9333ea'];
+
+const state = {userDir: null, folderDir: null, userSelected: {}, folderSelected: {}};
+
+function fmt(gb) {
+  if (gb >= 1024) return (gb / 1024).toFixed(1) + ' TB';
+  if (gb >= 1)    return gb.toFixed(1) + ' GB';
+  if (gb >= 1 / 1024) return (gb * 1024).toFixed(0) + ' MB';
+  return (gb * 1024 * 1024).toFixed(0) + ' KB';
+}
+
+function niceTicks(maxVal, n) {
+  if (maxVal <= 0) return [0];
+  const rough = maxVal / n;
+  const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+  const step = mag * Math.ceil(rough / mag);
+  const ticks = [];
+  for (let v = 0; v < maxVal + step; v += step) {
+    ticks.push(Math.round(v * 1e6) / 1e6);
+  }
+  return ticks;
+}
+
+function barChart(entries) {
+  if (!entries.length) return '<p class="no-data">No data.</p>';
+  const maxVal = entries[0][1];
+  return entries.map(([name, gb]) => {
+    const pct = maxVal > 0 ? (gb / maxVal * 100).toFixed(2) : 0;
+    return `<div class="bar-row">
+  <div class="bar-label" title="${name}">${name}</div>
+  <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+  <div class="bar-size">${fmt(gb)}</div>
+</div>`;
+  }).join('');
+}
+
+function totalLineChart(snaps) {
+  if (!snaps || !snaps.length) return '<p class="no-data">No historical data.</p>';
+  const dates = snaps.map(s => s.date);
+  const values = snaps.map(s => s.total || 0);
+  const maxVal = Math.max(...values);
+  if (maxVal === 0) return '<p class="no-data">No data.</p>';
+
+  const useTB = maxVal > 512;
+  const sc = useTB ? 1 / 1024 : 1;
+  const ticks = niceTicks(maxVal * sc, 5);
+  const tickMax = ticks[ticks.length - 1];
+  const effectiveMax = tickMax / sc;
+
+  const W = 540, H = 320;
+  const pad = {t: 20, r: 10, b: 50, l: 64};
+  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
+  const n = dates.length;
+  const xp = i => pad.l + (n > 1 ? i / (n - 1) * cW : cW / 2);
+  const yp = v => pad.t + cH * (1 - v / effectiveMax);
+
+  const s = [];
+  ticks.forEach(tick => {
+    const y = yp(tick / sc);
+    s.push(`<line x1="${pad.l}" y1="${y.toFixed(1)}" x2="${(pad.l + cW).toFixed(1)}" y2="${y.toFixed(1)}" stroke="#e5e7eb" stroke-width="1"/>`);
+    s.push(`<text x="${(pad.l - 5).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#6b7280">${tick}${useTB ? 'T' : 'G'}</text>`);
+  });
+  dates.forEach((d, i) => {
+    const x = xp(i);
+    s.push(`<line x1="${x.toFixed(1)}" y1="${(pad.t + cH)}" x2="${x.toFixed(1)}" y2="${(pad.t + cH + 5)}" stroke="#9ca3af" stroke-width="1"/>`);
+    s.push(`<text x="${x.toFixed(1)}" y="${(pad.t + cH + 18)}" text-anchor="middle" font-size="11" fill="#6b7280">${d}</text>`);
+  });
+  s.push(`<line x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${(pad.t + cH)}" stroke="#9ca3af" stroke-width="1"/>`);
+  s.push(`<line x1="${pad.l}" y1="${(pad.t + cH)}" x2="${(pad.l + cW)}" y2="${(pad.t + cH)}" stroke="#9ca3af" stroke-width="1"/>`);
+
+  const pts = values.map((v, i) => ({x: xp(i), y: yp(v)}));
+  if (n > 1) {
+    const d = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
+    s.push(`<path d="${d}" fill="none" stroke="#2563eb" stroke-width="2.5"/>`);
+  }
+  pts.forEach((p, pi) => {
+    s.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="5" fill="#2563eb" stroke="#fff" stroke-width="1.5"><title>${dates[pi]}: ${fmt(values[pi])}</title></circle>`);
+  });
+
+  const svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="-apple-system,sans-serif" style="max-width:100%">${s.join('')}</svg>`;
+  const legend = `<div class="legend-item"><div class="legend-dot" style="background:#2563eb"></div><span class="legend-name">Total</span></div>`;
+  return `<div class="chart-wrap"><div>${svg}</div><div>${legend}</div></div>`;
+}
+
+function lineChart(snapshots, entityKey, entities) {
+  if (!snapshots || !snapshots.length) return '<p class="no-data">No historical data.</p>';
+  const latest = snapshots[snapshots.length - 1][entityKey];
+  const topEntities = Array.isArray(entities)
+    ? entities
+    : Object.entries(latest).sort((a, b) => b[1] - a[1]).slice(0, entities).map(([k]) => k);
+  if (!topEntities.length) return '<p class="no-data">No entities selected.</p>';
+  const dates = snapshots.map(s => s.date);
+  let maxVal = 0;
+  topEntities.forEach(e => snapshots.forEach(s => {
+    const v = s[entityKey][e] || 0;
+    if (v > maxVal) maxVal = v;
+  }));
+  if (maxVal === 0) return '<p class="no-data">No data.</p>';
+
+  const useTB = maxVal > 512;
+  const sc = useTB ? 1 / 1024 : 1;
+  const ticks = niceTicks(maxVal * sc, 5);
+  const tickMax = ticks[ticks.length - 1];
+  const effectiveMax = tickMax / sc;
+
+  const W = 540, H = 320;
+  const pad = {t: 20, r: 10, b: 50, l: 64};
+  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
+  const n = dates.length;
+  const xp = i => pad.l + (n > 1 ? i / (n - 1) * cW : cW / 2);
+  const yp = v => pad.t + cH * (1 - v / effectiveMax);
+
+  const s = [];
+
+  ticks.forEach(tick => {
+    const y = yp(tick / sc);
+    s.push(`<line x1="${pad.l}" y1="${y.toFixed(1)}" x2="${(pad.l + cW).toFixed(1)}" y2="${y.toFixed(1)}" stroke="#e5e7eb" stroke-width="1"/>`);
+    s.push(`<text x="${(pad.l - 5).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#6b7280">${tick}${useTB ? 'T' : 'G'}</text>`);
+  });
+
+  dates.forEach((d, i) => {
+    const x = xp(i);
+    s.push(`<line x1="${x.toFixed(1)}" y1="${(pad.t + cH)}" x2="${x.toFixed(1)}" y2="${(pad.t + cH + 5)}" stroke="#9ca3af" stroke-width="1"/>`);
+    s.push(`<text x="${x.toFixed(1)}" y="${(pad.t + cH + 18)}" text-anchor="middle" font-size="11" fill="#6b7280">${d}</text>`);
+  });
+
+  s.push(`<line x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${(pad.t + cH)}" stroke="#9ca3af" stroke-width="1"/>`);
+  s.push(`<line x1="${pad.l}" y1="${(pad.t + cH)}" x2="${(pad.l + cW)}" y2="${(pad.t + cH)}" stroke="#9ca3af" stroke-width="1"/>`);
+
+  topEntities.forEach((entity, ei) => {
+    const color = COLORS[ei % COLORS.length];
+    const pts = snapshots.map((snap, i) => ({x: xp(i), y: yp(snap[entityKey][entity] || 0)}));
+    if (n > 1) {
+      const d = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
+      s.push(`<path d="${d}" fill="none" stroke="${color}" stroke-width="2" opacity="0.85"/>`);
+    }
+    pts.forEach((p, pi) => {
+      const val = snapshots[pi][entityKey][entity] || 0;
+      s.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="${color}" stroke="#fff" stroke-width="1.5"><title>${entity}: ${fmt(val)} (${dates[pi]})</title></circle>`);
+    });
+  });
+
+  const svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="-apple-system,sans-serif" style="max-width:100%">${s.join('')}</svg>`;
+  const legend = topEntities.map((e, i) => {
+    const v = latest[e] || 0;
+    const short = e.length > 16 ? e.slice(0, 15) + '…' : e;
+    return `<div class="legend-item"><div class="legend-dot" style="background:${COLORS[i % COLORS.length]}"></div><span class="legend-name" title="${e}">${short}</span><span class="legend-val">${fmt(v)}</span></div>`;
+  }).join('');
+
+  return `<div class="chart-wrap"><div>${svg}</div><div>${legend}</div></div>`;
+}
+
+function initSelection(type, dir, snaps, entityKey, defaultN) {
+  const key = type + 'Selected';
+  if (!state[key][dir]) {
+    const latest = snaps[snaps.length - 1][entityKey];
+    const top = Object.entries(latest).sort((a, b) => b[1] - a[1]).slice(0, defaultN).map(([k]) => k);
+    state[key][dir] = new Set(top);
+  }
+}
+
+function buildEntitySelector(type, dir, allEntries, sel) {
+  const rows = allEntries.map(([name, gb]) => {
+    const checked = sel.has(name) ? 'checked' : '';
+    return `<label class="entity-row" data-name="${name.toLowerCase()}" data-entity="${name}">` +
+      `<input type="checkbox" ${checked} onchange="toggleEntity('${type}','${dir}',this.closest('.entity-row').dataset.entity)">` +
+      `<span class="entity-name" title="${name}">${name}</span>` +
+      `<span class="entity-val">${fmt(gb)}</span>` +
+      `</label>`;
+  }).join('');
+  return `<div class="entity-selector">` +
+    `<input type="text" class="entity-search" placeholder="Search..." oninput="filterEntityList(this,'${type}-entity-list')">` +
+    `<div class="entity-list" id="${type}-entity-list">${rows}</div>` +
+    `</div>`;
+}
+
+function toggleEntity(type, dir, name) {
+  const key = type + 'Selected';
+  const sel = state[key][dir];
+  if (sel.has(name)) sel.delete(name); else sel.add(name);
+  const snaps = type === 'user' ? (DATA.byUser[dir] || []) : (DATA.byFolder[dir] || []);
+  const entityKey = type === 'user' ? 'users' : 'folders';
+  document.getElementById(type + '-right-chart').innerHTML = lineChart(snaps, entityKey, Array.from(sel));
+}
+
+function filterEntityList(input, listId) {
+  const q = input.value.toLowerCase();
+  document.getElementById(listId).querySelectorAll('.entity-row').forEach(row => {
+    row.style.display = row.dataset.name.includes(q) ? '' : 'none';
+  });
+}
+
+function renderDirBtns(containerEl, dirs, activeDir, setter) {
+  containerEl.innerHTML = dirs.map(d =>
+    `<button class="dir-btn${d === activeDir ? ' active' : ''}" onclick="${setter}('${d}')">${d}</button>`
+  ).join('');
+}
+
+function renderUserView(dir) {
+  const snaps = DATA.byUser[dir] || [];
+  const el = document.getElementById('user-view');
+  if (!snaps.length) { el.innerHTML = '<p class="no-data">No data for this directory.</p>'; return; }
+  const latest = snaps[snaps.length - 1];
+  const entries = Object.entries(latest.users).sort((a, b) => b[1] - a[1]);
+  const banner = `<div class="total-banner"><span class="total-value">${fmt(latest.total)}</span><span class="total-label">total used in /${dir} as of ${latest.date}</span></div>`;
+  const warn = `<div class="warning">⚠ Totals here are computed by summing individual file sizes via <code>stat</code>, not <code>du</code>. They will be lower than the By Folder tab, which uses <code>du</code> and accounts for filesystem block overhead. The By Folder tab is more accurate.</div>`;
+  initSelection('user', dir, snaps, 'users', 10);
+  const allUsers = Object.entries(latest.users).sort((a, b) => b[1] - a[1]);
+  const userSel = buildEntitySelector('user', dir, allUsers, state.userSelected[dir]);
+  el.innerHTML =
+    banner + warn +
+    `<div class="card card-scroll"><p class="card-title">Latest Snapshot — ${latest.date}</p>${barChart(entries)}</div>` +
+    `<div class="card"><p class="card-title">History</p><div class="chart-pair">` +
+      `<div class="chart-panel"><p class="chart-panel-title">Total size over time</p>${totalLineChart(snaps)}</div>` +
+      `<div class="chart-panel" style="flex:2"><p class="chart-panel-title">Users</p><div class="selector-chart-wrap"><div id="user-right-chart"></div><div class="selector-sidebar">${userSel}</div></div></div>` +
+    `</div></div>`;
+  document.getElementById('user-right-chart').innerHTML = lineChart(snaps, 'users', Array.from(state.userSelected[dir]));
+}
+
+function renderFolderView(dir) {
+  const snaps = DATA.byFolder[dir] || [];
+  const el = document.getElementById('folder-view');
+  if (!snaps.length) { el.innerHTML = '<p class="no-data">No data for this directory.</p>'; return; }
+  const latest = snaps[snaps.length - 1];
+  const entries = Object.entries(latest.folders).sort((a, b) => b[1] - a[1]);
+  const banner = `<div class="total-banner"><span class="total-value">${fmt(latest.total)}</span><span class="total-label">total used in /${dir} as of ${latest.date}</span></div>`;
+  initSelection('folder', dir, snaps, 'folders', 15);
+  const allFolders = Object.entries(latest.folders).sort((a, b) => b[1] - a[1]);
+  const folderSel = buildEntitySelector('folder', dir, allFolders, state.folderSelected[dir]);
+  el.innerHTML =
+    banner +
+    `<div class="card card-scroll"><p class="card-title">Latest Snapshot — ${latest.date}</p>${barChart(entries)}</div>` +
+    `<div class="card"><p class="card-title">History</p><div class="chart-pair">` +
+      `<div class="chart-panel"><p class="chart-panel-title">Total size over time</p>${totalLineChart(snaps)}</div>` +
+      `<div class="chart-panel" style="flex:2"><p class="chart-panel-title">Folders</p><div class="selector-chart-wrap"><div id="folder-right-chart"></div><div class="selector-sidebar">${folderSel}</div></div></div>` +
+    `</div></div>`;
+  document.getElementById('folder-right-chart').innerHTML = lineChart(snaps, 'folders', Array.from(state.folderSelected[dir]));
+}
+
+function setUserDir(dir) {
+  state.userDir = dir;
+  renderDirBtns(document.getElementById('user-dirs'), Object.keys(DATA.byUser), dir, 'setUserDir');
+  renderUserView(dir);
+}
+
+function setFolderDir(dir) {
+  state.folderDir = dir;
+  renderDirBtns(document.getElementById('folder-dirs'), Object.keys(DATA.byFolder), dir, 'setFolderDir');
+  renderFolderView(dir);
+}
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+(function init() {
+  const ud = Object.keys(DATA.byUser);
+  const fd = Object.keys(DATA.byFolder);
+  if (ud.length) setUserDir(ud[0]);
+  if (fd.length) setFolderDir(fd[0]);
+})();
+</script>
+</body>
+</html>
