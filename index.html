@@ -85,7 +85,7 @@
 </head>
 <body>
 <h1>Disk Usage</h1>
-<div class="ts">Generated 2026-11-19 17:30:53</div>
+<div class="ts">Generated 2026-11-19 17:36:09</div>
 <div class="tabs">
   <button class="tab-btn active" onclick="switchTab('user',this)">By User</button>
   <button class="tab-btn" onclick="switchTab('folder',this)">By Folder</button>
@@ -139,6 +139,12 @@ function barChart(entries) {
   }).join('');
 }
 
+// "2026-11-07" -> "11/07/26"
+function shortDate(d) {
+  const [y, m, day] = d.split('-');
+  return `${m}/${day}/${y.slice(2)}`;
+}
+
 function totalLineChart(snaps) {
   if (!snaps || !snaps.length) return '<p class="no-data">No historical data.</p>';
   const dates = snaps.map(s => s.date);
@@ -153,7 +159,7 @@ function totalLineChart(snaps) {
   const effectiveMax = tickMax / sc;
 
   const W = 540, H = 320;
-  const pad = {t: 20, r: 10, b: 50, l: 64};
+  const pad = {t: 20, r: 10, b: 58, l: 64};
   const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
   const n = dates.length;
   const xp = i => pad.l + (n > 1 ? i / (n - 1) * cW : cW / 2);
@@ -168,7 +174,8 @@ function totalLineChart(snaps) {
   dates.forEach((d, i) => {
     const x = xp(i);
     s.push(`<line x1="${x.toFixed(1)}" y1="${(pad.t + cH)}" x2="${x.toFixed(1)}" y2="${(pad.t + cH + 5)}" stroke="#9ca3af" stroke-width="1"/>`);
-    s.push(`<text x="${x.toFixed(1)}" y="${(pad.t + cH + 18)}" text-anchor="middle" font-size="11" fill="#6b7280">${d}</text>`);
+    const ly = pad.t + cH + 12;
+    s.push(`<text x="${x.toFixed(1)}" y="${ly}" text-anchor="end" font-size="10" fill="#6b7280" transform="rotate(-45 ${x.toFixed(1)} ${ly})"><title>${d}</title>${shortDate(d)}</text>`);
   });
   s.push(`<line x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${(pad.t + cH)}" stroke="#9ca3af" stroke-width="1"/>`);
   s.push(`<line x1="${pad.l}" y1="${(pad.t + cH)}" x2="${(pad.l + cW)}" y2="${(pad.t + cH)}" stroke="#9ca3af" stroke-width="1"/>`);
@@ -209,7 +216,7 @@ function lineChart(snapshots, entityKey, entities) {
   const effectiveMax = tickMax / sc;
 
   const W = 540, H = 320;
-  const pad = {t: 20, r: 10, b: 50, l: 64};
+  const pad = {t: 20, r: 10, b: 58, l: 64};
   const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
   const n = dates.length;
   const xp = i => pad.l + (n > 1 ? i / (n - 1) * cW : cW / 2);
@@ -226,7 +233,8 @@ function lineChart(snapshots, entityKey, entities) {
   dates.forEach((d, i) => {
     const x = xp(i);
     s.push(`<line x1="${x.toFixed(1)}" y1="${(pad.t + cH)}" x2="${x.toFixed(1)}" y2="${(pad.t + cH + 5)}" stroke="#9ca3af" stroke-width="1"/>`);
-    s.push(`<text x="${x.toFixed(1)}" y="${(pad.t + cH + 18)}" text-anchor="middle" font-size="11" fill="#6b7280">${d}</text>`);
+    const ly = pad.t + cH + 12;
+    s.push(`<text x="${x.toFixed(1)}" y="${ly}" text-anchor="end" font-size="10" fill="#6b7280" transform="rotate(-45 ${x.toFixed(1)} ${ly})"><title>${d}</title>${shortDate(d)}</text>`);
   });
 
   s.push(`<line x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${(pad.t + cH)}" stroke="#9ca3af" stroke-width="1"/>`);
